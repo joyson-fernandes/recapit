@@ -53,6 +53,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, AudioCaptureDelegate {
         } catch {
             NSLog("mic start failed: %@", String(describing: error))
         }
+        Task {
+            do {
+                try await capture?.startSystem()
+            } catch {
+                NSLog("system audio start failed: %@", String(describing: error))
+            }
+        }
     }
 
     // MARK: - AudioCaptureDelegate
