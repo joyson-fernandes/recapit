@@ -11,7 +11,9 @@ struct recapitApp {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var menuBar: MenuBarController?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // wired in later tasks
+        menuBar = MenuBarController()
     }
 }
