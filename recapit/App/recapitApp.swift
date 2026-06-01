@@ -11,63 +11,92 @@ struct recapitApp {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, AudioCaptureDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, CalendarMonitorDelegate, RecordingCoordinatorDelegate {
     private var menuBar: MenuBarController?
     private var settings: SettingsStore!
     private var calendarMonitor: CalendarMonitor!
     private var firstRun: FirstRunWizardController!
     private var mainWindow: MainWindowController?
     private var db: MeetingDB!
-    private var capture: AudioCaptureEngine?
+    private var markdown: MarkdownStore!
+    private var coordinator: RecordingCoordinator!
+    private var countdown: CountdownNotification!
+    private var asr: ASRProvider!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         settings = SettingsStore()
         let recapitDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Recapit")
         try? FileManager.default.createDirectory(at: recapitDir, withIntermediateDirectories: true)
-        let dbPath = recapitDir.appendingPathComponent("recapit.sqlite").path
         do {
-            db = try MeetingDB(path: dbPath)
+            db = try MeetingDB(path: recapitDir.appendingPathComponent("recapit.sqlite").path)
         } catch {
             NSLog("DB init failed: %@", String(describing: error))
             return
         }
-
+        markdown = MarkdownStore(root: recapitDir)
         calendarMonitor = CalendarMonitor(settings: settings)
+        calendarMonitor.delegate = self
+
+        asr = WhisperKitProvider(modelName: settings.asrModel)
+
+        coordinator = RecordingCoordinator(
+            db: db, markdown: markdown, settings: settings, asr: asr,
+            summaryEngineFactory: { [weak self] in
+                guard let self else { fatalError() }
+                let llm: LLMProvider = OllamaProvider()
+                return SummaryEngine(llm: llm, db: self.db, markdown: self.markdown,
+                                     summaryModel: self.settings.llmModel,
+                                     embeddingModel: "nomic-embed-text")
+            }
+        )
+        coordinator.delegate = self
+
         menuBar = MenuBarController()
         mainWindow = MainWindowController(db: db)
         menuBar?.onOpenMainWindow = { [weak self] in self?.mainWindow?.show() }
-        menuBar?.onCaptureNow = { [weak self] in self?.smokeTestStartMic() }
-        menuBar?.onStop = { [weak self] in self?.capture?.stop(); self?.menuBar?.setRecordingIcon(false) }
+        menuBar?.onCaptureNow = { [weak self] in self?.coordinator?.startAdhoc() }
+        menuBar?.onStop = { [weak self] in Task { await self?.coordinator?.stop() } }
+        menuBar?.onJoin = { [weak self] m in
+            self?.coordinator?.startCountdown(title: m.title,
+                                              calendarEventId: m.id,
+                                              meetingURL: m.meetingURL)
+        }
+
+        countdown = CountdownNotification()
+        countdown.configure()
+        countdown.onJoin = { [weak self] _ in
+            guard let upcoming = self?.menuBar?.viewModel.upcoming.first else { return }
+            self?.coordinator?.startCountdown(title: upcoming.title,
+                                              calendarEventId: upcoming.id,
+                                              meetingURL: upcoming.meetingURL)
+        }
 
         firstRun = FirstRunWizardController(settings: settings, calendarMonitor: calendarMonitor)
         firstRun.showIfNeeded()
         calendarMonitor.start()
     }
 
-    private func smokeTestStartMic() {
-        capture = AudioCaptureEngine()
-        capture?.delegate = self
-        do {
-            try capture?.startMic()
-            menuBar?.setRecordingIcon(true)
-        } catch {
-            NSLog("mic start failed: %@", String(describing: error))
-        }
-        Task {
-            do {
-                try await capture?.startSystem()
-            } catch {
-                NSLog("system audio start failed: %@", String(describing: error))
-            }
+    // MARK: - CalendarMonitorDelegate
+    nonisolated func calendarMonitor(_ monitor: CalendarMonitor, didUpdateUpcoming items: [UpcomingMeeting]) {
+        Task { @MainActor in self.menuBar?.viewModel.updateUpcoming(items) }
+    }
+    nonisolated func calendarMonitor(_ monitor: CalendarMonitor, meetingStartingSoon m: UpcomingMeeting) {
+        Task { @MainActor in self.countdown.post(meeting: m) }
+    }
+    nonisolated func calendarMonitor(_ monitor: CalendarMonitor, meetingNow m: UpcomingMeeting) {
+        Task { @MainActor in
+            self.coordinator.startCountdown(title: m.title, calendarEventId: m.id, meetingURL: m.meetingURL)
         }
     }
 
-    // MARK: - AudioCaptureDelegate
-    nonisolated func audioCapture(_ engine: AudioCaptureEngine, chunk: AudioChunk) {
-        let rms = sqrt(chunk.samples.reduce(0) { $0 + $1 * $1 } / Float(chunk.samples.count))
-        NSLog("mic chunk @ %lld ms, %d samples, rms %.4f", chunk.startMs, chunk.samples.count, rms)
+    // MARK: - RecordingCoordinatorDelegate
+    func coordinator(_ c: RecordingCoordinator, didChangeState state: RecordingCoordinator.State) {
+        menuBar?.setRecordingIcon(state == .recording)
+        menuBar?.viewModel.isProcessing = (state == .processing)
+        menuBar?.viewModel.currentRecording = c.currentMeeting
     }
-    nonisolated func audioCaptureDidFail(_ engine: AudioCaptureEngine, error: Error) {
-        NSLog("mic fail: %@", String(describing: error))
+    func coordinator(_ c: RecordingCoordinator, recordingMeeting m: Meeting) {}
+    func coordinator(_ c: RecordingCoordinator, finishedMeeting m: Meeting) {
+        menuBar?.viewModel.updateRecent((try? db.recentMeetings()) ?? [])
     }
 }
