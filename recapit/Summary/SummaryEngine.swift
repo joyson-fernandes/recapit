@@ -41,10 +41,17 @@ final class SummaryEngine {
             try await db.dbQueue.write { try a.insert($0) }
         }
 
-        // Pass 3 — Embeddings (best-effort; storage wired in Task 16)
+        // Pass 3 — Embeddings
         do {
-            let texts = segments.map(\.text)
-            _ = try await llm.embed(texts, model: embeddingModel)
+            let segs = try db.segments(meetingId: meetingId)
+            let texts = segs.map(\.text)
+            let embeddings = try await llm.embed(texts, model: embeddingModel)
+            let store = EmbeddingStore(db: db)
+            for (seg, emb) in zip(segs, embeddings) {
+                if let sid = seg.id {
+                    try await store.upsert(meetingId: meetingId, segmentId: sid, embedding: emb)
+                }
+            }
         } catch {
             NSLog("Embedding pass failed: %@", String(describing: error))
         }

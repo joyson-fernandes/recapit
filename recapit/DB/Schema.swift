@@ -86,5 +86,15 @@ enum DBMigration: String {
           rule            TEXT NOT NULL
         );
         """)
+        try db.execute(sql: """
+        CREATE TABLE meeting_embeddings (
+          meeting_id      TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+          segment_id      INTEGER NOT NULL,
+          dimension       INTEGER NOT NULL,
+          embedding_json  TEXT NOT NULL,
+          PRIMARY KEY (meeting_id, segment_id)
+        );
+        """)
+        try db.execute(sql: "CREATE INDEX idx_meeting_embeddings_meeting ON meeting_embeddings(meeting_id);")
     }
 }
