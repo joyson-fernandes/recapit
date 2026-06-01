@@ -1,0 +1,52 @@
+name: recapit
+options:
+  bundleIdPrefix: com.joyson
+  deploymentTarget:
+    macOS: "14.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    PRODUCT_BUNDLE_IDENTIFIER: com.joyson.recapit
+
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: "6.29.0"
+  SQLiteVec:
+    url: https://github.com/jkrukowski/SQLiteVec
+    from: "0.0.7"
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    from: "0.9.0"
+  onnxruntime:
+    url: https://github.com/microsoft/onnxruntime-swift-package-manager
+    from: "1.20.0"
+
+targets:
+  recapit:
+    type: application
+    platform: macOS
+    sources:
+      - recapit
+    dependencies:
+      - package: GRDB
+      - package: SQLiteVec
+      - package: WhisperKit
+      - package: onnxruntime
+        product: onnxruntime
+    settings:
+      base:
+        INFOPLIST_FILE: recapit/Info.plist
+        CODE_SIGN_ENTITLEMENTS: recapit/recapit.entitlements
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "E5B229B6341D07CBADB83D08A4BBA6CFE931B635"
+        DEVELOPMENT_TEAM: 77YLNJXKXT
+
+  recapitTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: recapitTests
+    dependencies:
+      - target: recapit
