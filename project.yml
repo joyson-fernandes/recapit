@@ -32,7 +32,6 @@ targets:
       - recapit
     dependencies:
       - package: GRDB
-      - package: SQLiteVec
       - package: WhisperKit
       - package: onnxruntime
         product: onnxruntime
