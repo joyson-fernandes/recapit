@@ -50,3 +50,9 @@ targets:
     sources: recapitTests
     dependencies:
       - target: recapit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "E5B229B6341D07CBADB83D08A4BBA6CFE931B635"
+        DEVELOPMENT_TEAM: 77YLNJXKXT
