@@ -13,6 +13,7 @@ final class MenuBarController: NSObject {
     var onCaptureNow: () -> Void = {}
     var onStop: () -> Void = {}
     var onJoin: (UpcomingMeeting) -> Void = { _ in }
+    var onQuit: () -> Void = { NSApp.terminate(nil) }
 
     override init() {
         super.init()
@@ -37,7 +38,8 @@ final class MenuBarController: NSObject {
             onOpenMainWindow: { [weak self] in self?.close(); self?.onOpenMainWindow() },
             onJoin: { [weak self] m in self?.close(); self?.onJoin(m) },
             onStop: { [weak self] in self?.onStop() },
-            onSettings: { [weak self] in self?.close(); self?.onSettings() }
+            onSettings: { [weak self] in self?.close(); self?.onSettings() },
+            onQuit: { [weak self] in self?.close(); self?.onQuit() }
         )
         let hosting = NSHostingController(rootView: view)
         if #available(macOS 13.0, *) {

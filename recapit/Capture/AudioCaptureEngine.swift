@@ -31,14 +31,6 @@ final class AudioCaptureEngine: NSObject {
         guard !isRunning else { return }
         let input = engine.inputNode
 
-        if input.isVoiceProcessingEnabled == false {
-            do {
-                try input.setVoiceProcessingEnabled(true)
-            } catch {
-                NSLog("voiceProcessing not available on this device: %@", String(describing: error))
-            }
-        }
-
         let inputFormat = input.outputFormat(forBus: 0)
         converter = AVAudioConverter(from: inputFormat, to: outputFormat)
         startDate = Date()

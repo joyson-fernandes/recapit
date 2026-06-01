@@ -7,6 +7,7 @@ struct PopoverView: View {
     let onJoin: (UpcomingMeeting) -> Void
     let onStop: () -> Void
     let onSettings: () -> Void
+    let onQuit: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -126,6 +127,9 @@ struct PopoverView: View {
             Spacer()
             Button(action: onSettings) {
                 Image(systemName: "gearshape").foregroundColor(.secondary)
+            }.buttonStyle(.plain)
+            Button(action: onQuit) {
+                Text("Quit").font(.caption).foregroundColor(.secondary)
             }.buttonStyle(.plain)
         }
         .padding(8)
